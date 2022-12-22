@@ -1,6 +1,3 @@
-import pandas as pd
-
-
 def shape(df):
     """Get shape of dataframe"""
     num_rows = df.shape[0]
