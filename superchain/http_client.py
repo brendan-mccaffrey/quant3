@@ -1,10 +1,11 @@
 import os
 import requests
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
-load_dotenv() # take environment variables from .env.
+# load environment variables
+load_dotenv(find_dotenv()) 
 
-class SuperchainClient:
+class HTTPClient:
     '''Superchain API HTTP Client'''
 
     base_url = "https://partners.superchain.app/v1/api/"
