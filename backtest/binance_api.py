@@ -174,15 +174,66 @@ def get_historical_data(
     df.to_pickle(data_path + "price-history/" + symbol + ".pkl")
 
 
-def get_historical_funding(
-    symbol, interval=Client.KLINE_INTERVAL_1HOUR, start_days_ago=200, end=None
-):
-    be
+def get_historical_funding(symbol, start_days_ago=200, end_str=None):
+    # create the Binance client, no need for api key
+    client = Client("", "")
+
+    # init our list
+    output_data = []
+
+    # setup the max limit
+    limit = 1000
+
+    # convert our date strings to milliseconds
+    d = datetime.now() - timedelta(days=start_days_ago)
+    start_ts = date_to_milliseconds(d)
+
+    # if an end time was passed convert it
+    end_ts = None
+    if end_str:
+        end_ts = date_to_milliseconds(end_str)
+
+    idx = 0
+    # it can be difficult to know when a symbol was listed on Binance so allow start time to be before list date
+    symbol_existed = False
+    while True:
+        temp_data = client.get_funding_rate_history(symbol, start_ts, end_ts, limit)
+
+        # handle the case where our start date is before the symbol pair listed on Binance
+        if not symbol_existed and len(temp_data):
+            symbol_existed = True
+
+        if symbol_existed:
+            # append this loops data to our output data
+            output_data += temp_data
+
+            # update our start timestamp using the last value in the array and add the interval timeframe
+            start_ts = temp_data[len(temp_data) - 1][0]
+        else:
+            # it wasn't listed yet, increment our start date 5 days
+            start_ts += timedelta(days=5).total_seconds() * 1000
+
+        idx += 1
+        # check if we received less than the required limit and exit the loop
+        if len(temp_data) < limit:
+            # exit the while loop
+            break
+
+        # sleep after every 3rd call to be kind to the API
+        if idx % 3 == 0:
+            time.sleep(1)
+
+    return output_data
 
 
 def main():
     # binance does not have YGG, MC, FXS
     # AXS, CRV, HNT, DYDX, FLOW, 1INCH only USDT pair
+
+    resp = get_historical_funding("BTCBUSD", start_days_ago=1)
+    df = pd.DataFrame(resp)
+    print(df.head)
+    return
 
     tickers = [
         "BTCBUSD",
@@ -201,7 +252,8 @@ def main():
     ]
 
     for ticker in tickers:
-        get_historical_data(ticker)
+        # get_historical_data(ticker)
+        get_historical_funding(ticker)
 
 
 main()
