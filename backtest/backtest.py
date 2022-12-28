@@ -16,6 +16,7 @@ mymarkets = [
 def run_test(df_in, short_tickers, long_tickers, short_size, long_size):
     """Run a backtest on a dataframe"""
     """Requires column formatting 'TICKER price' and 'TICKER rate'"""
+
     df = df_in.astype(float).copy()
     short_item_weight = 1 / len(short_tickers)
     long_item_weight = 1 / len(long_tickers)
