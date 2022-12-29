@@ -6,8 +6,29 @@ import pandas as pd
 
 from datetime import datetime, timedelta
 from binance.client import Client
+from binance.enums import HistoricalKlinesType
 
 data_path = "../store/data/binance/"
+binance_tickers = [
+    "BTCBUSD",
+    "ETHBUSD",
+    "BNBBUSD",
+    "SANDBUSD",
+    "GMTBUSD",
+    "NEARBUSD",
+    "AVAXBUSD",
+    "AXSUSDT",
+    "CRVUSDT",
+    "HNTUSDT",
+    "DYDXUSDT",
+    "1INCHUSDT",
+    "FLOWUSDT",
+]
+
+
+def truncate_ms(dt):
+    """Remove microseconds from datetime object"""
+    return dt.replace(microsecond=0)
 
 
 def date_to_milliseconds(d):
@@ -48,7 +69,7 @@ def interval_to_milliseconds(interval):
     return ms
 
 
-def get_historical_klines(symbol, interval, start_days_ago, end_str=None):
+def _get_historical_klines(symbol, interval, days, end_str=None, futures=True):
     """Get Historical Klines from Binance
     See dateparse docs for valid start and end string formats http://dateparser.readthedocs.io/en/latest/
     If using offset strings for dates add "UTC" to date string e.g. "now UTC", "11 hours ago UTC"
@@ -75,7 +96,7 @@ def get_historical_klines(symbol, interval, start_days_ago, end_str=None):
     timeframe = interval_to_milliseconds(interval)
 
     # convert our date strings to milliseconds
-    d = datetime.now() - timedelta(days=start_days_ago)
+    d = datetime.now() - timedelta(days=days)
     start_ts = date_to_milliseconds(d)
 
     # if an end time was passed convert it
@@ -87,8 +108,13 @@ def get_historical_klines(symbol, interval, start_days_ago, end_str=None):
     # it can be difficult to know when a symbol was listed on Binance so allow start time to be before list date
     symbol_existed = False
     while True:
+        if futures:
+            klines_type = HistoricalKlinesType.FUTURES
+        else:
+            klines_type = HistoricalKlinesType.SPOT
         # fetch the klines from start_ts up to max 500 entries or the end_ts if set
-        temp_data = client.get_klines(
+        temp_data = client._klines(
+            klines_type=klines_type,
             symbol=symbol,
             interval=interval,
             limit=limit,
@@ -124,9 +150,13 @@ def get_historical_klines(symbol, interval, start_days_ago, end_str=None):
 
 
 def get_historical_data(
-    symbol, interval=Client.KLINE_INTERVAL_1HOUR, start_days_ago=200, end=None
+    symbol,
+    days,
+    interval=Client.KLINE_INTERVAL_1HOUR,
+    end=None,
+    futures=True,
 ):
-    data = get_historical_klines(symbol, interval, start_days_ago)
+    data = _get_historical_klines(symbol, interval, days, end_str=end, futures=futures)
     df = pd.DataFrame(data)
 
     # format
@@ -170,11 +200,12 @@ def get_historical_data(
     df.set_index("time", inplace=True)
     df.index = pd.to_datetime(df.index, unit="ms")
 
-    print(df.head(10))
     df.to_pickle(data_path + "price-history/" + symbol + ".pkl")
+    print("Price data pulled from Binance for " + symbol)
+    print(df.head(10))
 
 
-def get_historical_funding(symbol, start_days_ago=200, end_str=None):
+def get_historical_funding(symbol, days, end_str=None):
     # create the Binance client, no need for api key
     client = Client("", "")
 
@@ -185,7 +216,7 @@ def get_historical_funding(symbol, start_days_ago=200, end_str=None):
     limit = 1000
 
     # convert our date strings to milliseconds
-    d = datetime.now() - timedelta(days=start_days_ago)
+    d = datetime.now() - timedelta(days=days)
     start_ts = date_to_milliseconds(d)
 
     # if an end time was passed convert it
@@ -197,7 +228,9 @@ def get_historical_funding(symbol, start_days_ago=200, end_str=None):
     # it can be difficult to know when a symbol was listed on Binance so allow start time to be before list date
     symbol_existed = False
     while True:
-        temp_data = client.get_funding_rate_history(symbol, start_ts, end_ts, limit)
+        temp_data = client.futures_funding_rate(
+            symbol=symbol, startTime=start_ts, endTime=end_ts, limit=limit
+        )
 
         # handle the case where our start date is before the symbol pair listed on Binance
         if not symbol_existed and len(temp_data):
@@ -208,7 +241,7 @@ def get_historical_funding(symbol, start_days_ago=200, end_str=None):
             output_data += temp_data
 
             # update our start timestamp using the last value in the array and add the interval timeframe
-            start_ts = temp_data[len(temp_data) - 1][0]
+            start_ts = temp_data[len(temp_data) - 1]["fundingTime"]
         else:
             # it wasn't listed yet, increment our start date 5 days
             start_ts += timedelta(days=5).total_seconds() * 1000
@@ -223,37 +256,71 @@ def get_historical_funding(symbol, start_days_ago=200, end_str=None):
         if idx % 3 == 0:
             time.sleep(1)
 
-    return output_data
+    # format
+    df = pd.DataFrame(output_data)
+    df.drop_duplicates(inplace=True)
+    df.rename(
+        columns={"fundingTime": "time", "fundingRate": symbol + " rate"},
+        inplace=True,
+    )
+    df.drop(columns=["symbol"], axis=1, inplace=True)
+    df.set_index("time", inplace=True)
+    df.index = pd.to_datetime(df.index, unit="ms")
+
+    # handle annoying thing where binance time is off by a few microseconds
+    df.index = df.index.map(truncate_ms)
+
+    print("Funding data pulled from Binance for " + symbol)
+    print(df.head(6))
+    df.to_pickle(data_path + "funding-history/" + symbol + ".pkl")
 
 
-def main():
-    # binance does not have YGG, MC, FXS
-    # AXS, CRV, HNT, DYDX, FLOW, 1INCH only USDT pair
+def combine_price_and_funding(symbol):
+    price_df = pd.read_pickle(data_path + "price-history/" + symbol + ".pkl")
+    funding_df = pd.read_pickle(data_path + "funding-history/" + symbol + ".pkl")
 
-    resp = get_historical_funding("BTCBUSD", start_days_ago=1)
-    df = pd.DataFrame(resp)
-    print(df.head)
-    return
+    df = pd.concat([price_df, funding_df], axis=1, join="inner")
+    df.ffill(inplace=True)
 
-    tickers = [
-        "BTCBUSD",
-        "ETHBUSD",
-        "BNBBUSD",
-        "SANDBUSD",
-        "GMTBUSD",
-        "NEARBUSD",
-        "AVAXBUSD",
-        "AXSUSDT",
-        "CRVUSDT",
-        "HNTUSDT",
-        "DYDXUSDT",
-        "1INCHUSDT",
-        "FLOWUSDT",
-    ]
+    # remove first rows that have no funding data
+    rows_to_remove = 0
+    for idx, row in df.iterrows():
+        if pd.isna(row[symbol + " rate"]):
+            rows_to_remove += 1
+        else:
+            break
+    df.drop(df.index[:rows_to_remove], inplace=True)
 
+    df.to_pickle(data_path + "price_w_funding/" + symbol + ".pkl")
+
+    print("Combined data for " + symbol)
+    print(df.head(9))
+
+
+def make_master_df(tickers, saveTo="master_df"):
+
+    df = pd.DataFrame()
     for ticker in tickers:
-        # get_historical_data(ticker)
-        get_historical_funding(ticker)
+        temp_df = pd.read_pickle(data_path + "price_w_funding/" + ticker + ".pkl")
+        df = pd.concat([df, temp_df], axis=1, join="outer")
+
+    # remove rows with any NaN
+    df.ffill(inplace=True)
+    df.dropna(inplace=True)
+
+    print("Master df created")
+    print(df.head(10))
+
+    df.to_pickle(data_path + f"{saveTo}.pkl")
 
 
-main()
+def create_data(tickers=binance_tickers, days=200, saveTo="master_df"):
+    """Pull price, funding, and combine into one df"""
+    for ticker in tickers:
+        get_historical_data(ticker, days)
+        get_historical_funding(ticker, days)
+        combine_price_and_funding(ticker)
+    make_master_df(tickers, saveTo=saveTo)
+
+
+# create_data()

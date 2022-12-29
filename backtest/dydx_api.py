@@ -15,11 +15,13 @@ dydx_markets = [
 ]
 
 
-def get_markets_list(cl, mymarkets=dydx_markets):
+def get_markets_list(cl, mymarkets=dydx_markets, saveTo=None):
     """Retreive all markets from dydx"""
 
     markets = cl.public.get_markets()
     df = pd.DataFrame.from_dict(markets.data)
+
+    # parse out only my markets
     df = df.loc[mymarkets]
 
     # format
@@ -29,16 +31,17 @@ def get_markets_list(cl, mymarkets=dydx_markets):
         new_df = pd.concat([new_df, row], axis=0)
     new_df.set_index("market", inplace=True)
 
-    # move eth to top
-    eth = new_df.loc["ETH-USD"]
-    new_df = new_df.drop("ETH-USD")
-    new_df = pd.DataFrame(eth).T.append(new_df)
+    # # move eth to top
+    # eth = new_df.loc["ETH-USD"]
+    # new_df = new_df.drop("ETH-USD")
+    # new_df = pd.DataFrame(eth).T.append(new_df)
 
     # save
-    new_df.to_pickle(data_path + "markets.pkl")
+    if saveTo:
+        new_df.to_pickle(data_path + f"{saveTo}.pkl")
 
 
-def get_historical_data(cl, mymarkets=dydx_markets, days=200):
+def get_historical_data(cl, mymarkets=dydx_markets, days=200, save=False):
     """Get historical prices & funding rates from dydx"""
 
     for market in mymarkets:
@@ -62,12 +65,14 @@ def get_historical_data(cl, mymarkets=dydx_markets, days=200):
         df = df.drop_duplicates()
 
         # save
-        df.to_pickle(data_path + f"{market}.pkl")
-        print("Saved " + market + " to pickle")
+        if save:
+            df.to_pickle(data_path + f"{market}.pkl")
+            print("Saved " + market + " to pickle")
+        print("Market: ", market)
         print(df.head(4))
 
 
-def combine_market_dfs(mymarkets=dydx_markets):
+def combine_market_dfs(mymarkets=dydx_markets, saveTo=None):
     """Combine all dataframes into one master dataframe"""
 
     # combine
@@ -87,8 +92,11 @@ def combine_market_dfs(mymarkets=dydx_markets):
     df.sort_index(axis=0, inplace=True)
 
     # save
-    df.to_pickle(data_path + "combined.pkl")
-    print("Saved combined.pkl")
+    if saveTo:
+        df.to_pickle(data_path + f"{saveTo}.pkl")
+        print("Saved " + f"{saveTo}.pkl")
+
+    print("Combined Dataframe")
     print(df.head(4))
 
 

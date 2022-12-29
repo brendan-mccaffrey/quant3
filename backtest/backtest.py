@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pickle
 
-mymarkets = [
+dydx_markets = [
     "ETH-USD",
     "1INCH-USD",
     "AVAX-USD",
@@ -12,23 +12,42 @@ mymarkets = [
     "COMP-USD",
 ]
 
+binance_markets = [
+    "BTCBUSD",
+    "ETHBUSD",
+    "BNBBUSD",
+    "SANDBUSD",
+    "GMTBUSD",
+    "NEARBUSD",
+    "AVAXBUSD",
+    "AXSUSDT",
+    "CRVUSDT",
+    "HNTUSDT",
+    "DYDXUSDT",
+    "1INCHUSDT",
+    "FLOWUSDT",
+]
 
-def run_test(df_in, short_tickers, long_tickers, short_size, long_size):
+
+def run_test(df_in, strategy, days=None):
     """Run a backtest on a dataframe"""
     """Requires column formatting 'TICKER price' and 'TICKER rate'"""
-
     df = df_in.astype(float).copy()
-    short_item_weight = 1 / len(short_tickers)
-    long_item_weight = 1 / len(long_tickers)
-    df["shorts_value"] = short_size
-    df["longs_value"] = long_size
-    df["portfolio_value"] = short_size + long_size
+
+    if days and days * 24 < len(df):
+        df = df.tail(days * 24)
+
+    df["short_side"] = strategy["short_side"]["value"]
+    df["long_side"] = strategy["long_side"]["value"]
 
     print("--------------------")
     print("Running Backtest")
-    print("> Short tickers:", short_tickers)
-    print("> Long tickers:", long_tickers)
-    print("Portfolio value:", short_size + long_size)
+    print("> Short Side: \n", strategy["short_side"]["tickers"])
+    print("> Long Side: \n", strategy["long_side"]["tickers"])
+    print(
+        "Portfolio value:",
+        strategy["short_side"]["value"] + strategy["long_side"]["value"],
+    )
     print("--------------------")
 
     prev = None
@@ -39,145 +58,160 @@ def run_test(df_in, short_tickers, long_tickers, short_size, long_size):
 
         # calculate shorts
         short_day_factor = 0
-        for ticker in short_tickers:
+        for ticker, weight in strategy["short_side"]["tickers"].items():
             if row[ticker + " price"] == 0:
-                print("Found zero price, replacing with previous price")
+                print("Found zero price, filling with previous")
                 row[ticker + " price"] = prev[ticker + " price"]
 
             # hr_change = yesterday / today
             hr_change_short = prev[ticker + " price"] / row[ticker + " price"]
-
             # factor funding, positive funding -> shorts get paid
             hr_short_perf = hr_change_short * (1 + row[ticker + " rate"])
             # add to basket
-            short_day_factor += (hr_short_perf) * short_item_weight
-
-            # # logging for debugging
-            # if short == "AVAX-USD":
-            #     print("AVAX prev:", prev[short + " price"])
-            #     print("AVAX today:", row[short + " price"])
-            #     print("AVAX change:", hr_change_short)
-            #     print("Hour Short perf:", (1 + hr_change_short))
-            #     print("With funding:", hr_short_perf)
+            short_day_factor += (hr_short_perf) * weight
 
         # calculate longs
         long_day_factor = 0
-        for ticker in long_tickers:
+        for ticker, weight in strategy["long_side"]["tickers"].items():
+            if row[ticker + " price"] == 0:
+                print("Found zero price, filling with previous")
+                row[ticker + " price"] = prev[ticker + " price"]
+
             # hr change = today / yesterday
             hr_change_long = row[ticker + " price"] / prev[ticker + " price"]
             # factor funding
             hr_long_perf = hr_change_long * (1 - row[ticker + " rate"])
             # add to basket
-            long_day_factor += (hr_long_perf) * long_item_weight
+            long_day_factor += (hr_long_perf) * weight
 
-        # # Sanity
+        row.short_side = prev.short_side * short_day_factor
+        row.long_side = prev.long_side * long_day_factor
+
+        # # Sanity logging
         # print("ETH yesterday:", prev["ETH-USD price"])
         # print("ETH today:", row["ETH-USD price"])
         # print("Short Value Change:", short_day_factor)
         # print("Long Value Change:", long_day_factor)
         # print("Product should equal 1:", short_day_factor * long_day_factor)
 
-        row.shorts_value = prev.shorts_value * short_day_factor
-        row.longs_value = prev.longs_value * long_day_factor
-        row.portfolio_value = row.shorts_value + row.longs_value
-
         # save changes to df
         df.loc[idx] = row
         prev = row
 
+    df["portfolio_value"] = df["short_side"] + df["long_side"]
     return df
 
 
-def to_csv():
-    df = pd.read_pickle("../data/dydx/backtest-equal-short.pkl")
+def to_csv(df, file_path):
+    # add hourly change
     df["portfolio_change"] = df["portfolio_value"].pct_change()
-
-    df.to_csv("../data/dydx/backtest-equal-short.csv")
-    # # df["RFR"] = 0.04 / (365 * 24)
-    # # df["sharpe"] = (df["portfolio_change"] - df["RFR"]) / df["portfolio_change"].std()
-
-    # print(df.head(5))
-
-    # df.plot(
-    #     y=["portfolio_value", "sharpe"],
-    #     kind="line",
-    #     title="DYDX Backtest \n Equal-Weight Short",
-    # )
-
-    # plt.show()
+    # save
+    df.to_csv(f"{file_path}.csv")
 
 
-def chart_backtest():
-    df = pd.read_pickle("../data/dydx/backtest-equal-short.pkl")
-
-    # print(df.head(5))
+def chart_backtest(df, columns, title):
     df.plot(
-        y=["portfolio_value"],
+        y=columns,
         ylabel="$ millions",
         kind="line",
-        title="DYDX Backtest \n Long ETH || Equal-Weight Short 1INCH, AVAX, CRV, UNI, NEAR, COMP",
+        title=title,
     )
     plt.show()
 
-    # # save backtest
-    # plt.savefig(
-    #     "dydx-equal-weight",
-    #     dpi=300,
-    #     format="png",
-    # )
+
+def title_strategy(strategy):
+    longs = "Long Side: "
+    for ticker, weight in strategy["long_side"]["tickers"].items():
+        asset = ticker[0 : len(ticker) - 4]
+        longs += f"{asset} {weight} "
+    shorts = "Short Side: "
+    for ticker, weight in strategy["short_side"]["tickers"].items():
+        asset = ticker[0 : len(ticker) - 4]
+        shorts += f"{asset} {weight} "
+    title = "Spread Strategy\n" + longs + "\n" + shorts
+    return title
 
 
-def backtest_equal_short():
-    """Backtest equal weight short strategy"""
+def perform_backtest():
+    """Perform backtest on data"""
 
-    df = pd.read_pickle("../data/dydx/funding/combined.pkl")
+    df = pd.read_pickle("../store/data/binance/master_df.pkl")
 
-    # # SANITY CHECK
-    # test_df = df.iloc[:10].copy()
-    # shorts = [mymarkets[0]]
-    # longs = shorts
-    # backtest = run_test(test_df, shorts, longs, 500000, 500000)
+    binance_strategy_map = {
+        "long_side": {"value": 500000, "tickers": {"BTCBUSD": 0.2, "ETHBUSD": 0.8}},
+        "short_side": {
+            "value": 500000,
+            "tickers": {
+                "BNBBUSD": 0.1,
+                "SANDBUSD": 0.1,
+                "GMTBUSD": 0.1,
+                "DYDXUSDT": 0.1,
+                "AVAXBUSD": 0.1,
+                "CRVUSDT": 0.1,
+                "APTBUSD": 0.1,
+                "HBARUSDT": 0.1,
+                "ALGOUSDT": 0.1,
+                "OPUSDT": 0.1,
+                "NEARBUSD": 0.08,
+                "AXSUSDT": 0.08,
+                "1INCHUSDT": 0.08,
+                "FLOWUSDT": 0.08,
+            },
+        },
+    }
+    title = title_strategy(binance_strategy_map)
+    file_path = "../store/results/"
 
-    shorts = mymarkets[1:]
-    longs = [mymarkets[0]]
-    backtest = run_test(df, shorts, longs, 500000, 500000)
+    backtest = run_test(df, binance_strategy_map, 90)
 
+    print("--------------------")
+    print("> backtest complete")
     print(backtest.head(5))
-    print(backtest.tail(5))
+    chart_backtest(
+        backtest, ["short_side", "long_side", "portfolio_value"], title=title
+    )
 
-    backtest.to_pickle("../data/dydx/backtest-equal-short.pkl")
-
-    # # add a new column of 0s to the dataframe
-    # df["shorts_value"] = 500000
-    # df["longs_value"] = 500000
-
-    # # print(df.head(3))
-
-    # df = df.astype(float).copy()
-
-    # short_df = df.iloc[:3].copy()
-
-    # print(short_df.head(3))
-    # backtest = run_test(short_df)
-    # print(backtest.head(3))
-
-    # short_df.apply(compute_value_equal_short, axis=1)
-
-    # print(short_df.head(3))
-
-    # hello
-
-    # print(df.head())
-
-    # print(df["shorts_value"])
-
-    # df["shorts_value"] = df.apply(compute_value_equal_short, axis=1)
-
-    # df["shorts_value"] = df["shorts_value"].shift(1) * df["1INCH-USD price"]
-
-    # print(df.head())
+    save_test = input("Would you like to export this test to csv? (y/n): ")
+    if save_test == "y":
+        name = input("Enter the name of the strategy: ")
+        backtest.to_pickle(f"{file_path}tests/{name}.pkl")
+        to_csv(backtest, f"{file_path}csv/{name}")
 
 
-# backtest_equal_short()
-# chart_backtest()
-compute_sharpe()
+perform_backtest()
+
+# def backtest_equal_short(df, name, short_markets, long_markets):
+#     """Backtest equal weight short strategy"""
+#     # # SANITY CHECK
+#     # test_df = df.iloc[:10].copy()
+#     # shorts = [mymarkets[0]]
+#     # longs = shorts
+#     # backtest = run_test(test_df, shorts, longs, 500000, 500000)
+
+#     backtest = run_test(df, short_markets, long_markets, 500000, 500000)
+
+#     print("BACKTEST RESULTS")
+#     print(backtest.head(5))
+#     print(backtest.tail(5))
+
+#     backtest.to_pickle(f"../store/results/{name}.pkl")
+
+
+# # df = pd.read_pickle("../data/dydx/funding/combined.pkl")
+# # short_markets = dydx_markets[1:]
+# # long_markets = dydx_markets[0:1]
+
+# df = pd.read_pickle("../store/data/binance/master_df.pkl")
+# name = "binance-equal-spread"
+# short_markets = binance_markets[2:]
+# long_markets = binance_markets[0:2]
+# backtest_equal_short(df, name, short_markets, long_markets)
+
+# # df = pd.read_pickle("../data/dydx/backtest-equal-short.pkl")
+# df = pd.read_pickle(f"../store/results/{name}.pkl")
+# title = f"Binance Backtest \n Equal-Weight Long: {', '.join(long_markets)} \n Equal-Weight Short: {', '.join(short_markets)}"
+# chart_backtest(df, ["shorts_value", "longs_value", "portfolio_value"], title)
+
+
+# df = pd.read_pickle("../data/dydx/backtest-equal-short.pkl")
+# to_csv(df, "dydx-backtest-equal-weight")
