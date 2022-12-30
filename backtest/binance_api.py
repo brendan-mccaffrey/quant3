@@ -19,10 +19,13 @@ binance_tickers = [
     "AVAXBUSD",
     "AXSUSDT",
     "CRVUSDT",
-    "HNTUSDT",
+    "HBARUSDT",
     "DYDXUSDT",
     "1INCHUSDT",
     "FLOWUSDT",
+    "APTBUSD",
+    "ALGOUSDT",
+    "OPUSDT",
 ]
 
 
@@ -201,8 +204,9 @@ def get_historical_data(
     df.index = pd.to_datetime(df.index, unit="ms")
 
     df.to_pickle(data_path + "price-history/" + symbol + ".pkl")
-    print("Price data pulled from Binance for " + symbol)
-    print(df.head(10))
+    # print("Price data pulled from Binance for " + symbol)
+    # print(df.head(10))
+    return df
 
 
 def get_historical_funding(symbol, days, end_str=None):
@@ -270,14 +274,17 @@ def get_historical_funding(symbol, days, end_str=None):
     # handle annoying thing where binance time is off by a few microseconds
     df.index = df.index.map(truncate_ms)
 
-    print("Funding data pulled from Binance for " + symbol)
-    print(df.head(6))
+    # print("Funding data pulled from Binance for " + symbol)
+    # print(df.head(6))
     df.to_pickle(data_path + "funding-history/" + symbol + ".pkl")
+    return df
 
 
-def combine_price_and_funding(symbol):
-    price_df = pd.read_pickle(data_path + "price-history/" + symbol + ".pkl")
-    funding_df = pd.read_pickle(data_path + "funding-history/" + symbol + ".pkl")
+def combine_price_and_funding(symbol, price_df=None, funding_df=None):
+    if price_df is None:
+        price_df = pd.read_pickle(data_path + "price-history/" + symbol + ".pkl")
+    if funding_df is None:
+        funding_df = pd.read_pickle(data_path + "funding-history/" + symbol + ".pkl")
 
     df = pd.concat([price_df, funding_df], axis=1, join="inner")
     df.ffill(inplace=True)
@@ -293,8 +300,8 @@ def combine_price_and_funding(symbol):
 
     df.to_pickle(data_path + "price_w_funding/" + symbol + ".pkl")
 
-    print("Combined data for " + symbol)
-    print(df.head(9))
+    # print("Combined data for " + symbol)
+    # print(df.head(9))
 
 
 def make_master_df(tickers, saveTo="master_df"):
@@ -308,19 +315,22 @@ def make_master_df(tickers, saveTo="master_df"):
     df.ffill(inplace=True)
     df.dropna(inplace=True)
 
-    print("Master df created")
-    print(df.head(10))
-
     df.to_pickle(data_path + f"{saveTo}.pkl")
+    return df
 
 
-def create_data(tickers=binance_tickers, days=200, saveTo="master_df"):
-    """Pull price, funding, and combine into one df"""
+def pull(tickers, days):
     for ticker in tickers:
-        get_historical_data(ticker, days)
-        get_historical_funding(ticker, days)
-        combine_price_and_funding(ticker)
-    make_master_df(tickers, saveTo=saveTo)
+        price = get_historical_data(ticker, days)
+        funding = get_historical_funding(ticker, days)
+        combine_price_and_funding(ticker, price, funding)
+        print("Finished pulling data for " + ticker)
 
 
-# create_data()
+def create_data(tickers=binance_tickers, days=200, saveTo="data_df"):
+    """Pull price, funding, and combine into one df"""
+    pull(tickers, days)
+    df = make_master_df(tickers, saveTo=saveTo)
+
+    print("Got data from Binance")
+    print(df.head(10))
