@@ -3,7 +3,7 @@ from web3 import Web3
 import pandas as pd
 import utils
 
-data_path = "../store/data/dydx/"
+data_path = "./store/data/dydx/"
 dydx_markets = [
     "ETH-USD",
     "1INCH-USD",
@@ -100,9 +100,9 @@ def combine_market_dfs(mymarkets=dydx_markets, saveTo=None):
     print(df.head(4))
 
 
-# def main():
-#     cl = Client("https://api.dydx.exchange")
+def get_data(name="dydx_data"):
+    cl = Client("https://api.dydx.exchange")
 
-#     get_markets_list(cl)
-#     get_historical_data(cl, mymarkets, days=200)
-#     combine_market_dfs(mymarkets)
+    get_markets_list(cl)
+    get_historical_data(cl, dydx_markets, days=200)
+    combine_market_dfs(dydx_markets, saveTo=name)

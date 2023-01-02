@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from binance.client import Client
 from binance.enums import HistoricalKlinesType
 
-data_path = "../store/data/binance/"
+data_path = "./store/data/binance/"
 binance_tickers = [
     "BTCBUSD",
     "ETHBUSD",
@@ -286,7 +286,7 @@ def combine_price_and_funding(symbol, price_df=None, funding_df=None):
     if funding_df is None:
         funding_df = pd.read_pickle(data_path + "funding-history/" + symbol + ".pkl")
 
-    df = pd.concat([price_df, funding_df], axis=1, join="inner")
+    df = pd.concat([price_df, funding_df], axis=1, join="outer")
     df.ffill(inplace=True)
 
     # remove first rows that have no funding data
@@ -321,13 +321,13 @@ def make_master_df(tickers, saveTo="master_df"):
 
 def pull(tickers, days):
     for ticker in tickers:
-        price = get_historical_data(ticker, days)
-        funding = get_historical_funding(ticker, days)
-        combine_price_and_funding(ticker, price, funding)
+        # price = get_historical_data(ticker, days)
+        # funding = get_historical_funding(ticker, days)
+        combine_price_and_funding(ticker)
         print("Finished pulling data for " + ticker)
 
 
-def create_data(tickers=binance_tickers, days=200, saveTo="data_df"):
+def create_data(tickers=binance_tickers, days=200, saveTo="data_90"):
     """Pull price, funding, and combine into one df"""
     pull(tickers, days)
     df = make_master_df(tickers, saveTo=saveTo)

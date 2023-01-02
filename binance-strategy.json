@@ -1,0 +1,28 @@
+{
+    "long_side": {
+        "value": 500000,
+        "tickers": {
+            "BTCBUSD": 0.1,
+            "ETHBUSD": 0.9
+        }
+    },
+    "short_side": {
+        "value": 500000,
+        "tickers": {
+            "BNBBUSD": 0.05,
+            "SANDBUSD": 0.1,
+            "GMTBUSD": 0.08,
+            "DYDXUSDT": 0.07,
+            "AVAXBUSD": 0.05,
+            "CRVUSDT": 0.06,
+            "APTBUSD": 0.12,
+            "HBARUSDT": 0.05,
+            "ALGOUSDT": 0.06,
+            "OPUSDT": 0.14,
+            "NEARBUSD": 0.07,
+            "AXSUSDT": 0.04,
+            "1INCHUSDT": 0.05,
+            "FLOWUSDT": 0.06
+        }
+    }
+}

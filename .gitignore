@@ -1,4 +1,9 @@
 .env
-store/**/*
+store/data/binance/funding-history/*
+store/data/binance/price-history/*
+store/data/binance/price_w_funding/*
+store/data/dydx/*
+store/results/tests/*
+store/results/csv/*
 old
 

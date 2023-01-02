@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import math
+import json
 
 dydx_markets = [
     "ETH-USD",
@@ -44,15 +45,6 @@ def run_test(df_in, strategy, days=None):
     df["short_side"] = strategy["short_side"]["value"]
     df["long_side"] = strategy["long_side"]["value"]
 
-    # print("--------------------")
-    # print("Running Backtest")
-    # print("> Short Side: \n", strategy["short_side"]["tickers"])
-    # print("> Long Side: \n", strategy["long_side"]["tickers"])
-    # print(
-    #     "Portfolio value:",
-    #     strategy["short_side"]["value"] + strategy["long_side"]["value"],
-    # )
-    # print("--------------------")
     prev = None
     for idx, row in df.iterrows():
         if prev is None:
@@ -87,20 +79,8 @@ def run_test(df_in, strategy, days=None):
             # add to basket
             long_day_factor += (hr_long_perf) * weight
 
-        # if short_day_factor > 1.05:
-        #     print("Large short change detected: ", short_day_factor)
-        #     print(prev)
-        #     print(row)
-
         row.short_side = prev.short_side * short_day_factor
         row.long_side = prev.long_side * long_day_factor
-
-        # # Sanity logging
-        # print("ETH yesterday:", prev["ETH-USD price"])
-        # print("ETH today:", row["ETH-USD price"])
-        # print("Short Value Change:", short_day_factor)
-        # print("Long Value Change:", long_day_factor)
-        # print("Product should equal 1:", short_day_factor * long_day_factor)
 
         # save changes to df
         df.loc[idx] = row
@@ -171,9 +151,9 @@ def sample_strategies():
 
     num_assets = len(binance_tickers)
     num_portfolios = 100
-    df = pd.read_pickle("../store/data/binance/data_df.pkl")
+    df = pd.read_pickle("./store/data/binance/data_df.pkl")
 
-    var_matrix = pd.read_pickle("../store/data/binance/var_matrix.pkl")
+    var_matrix = pd.read_pickle("./store/data/binance/var_matrix.pkl")
 
     for port in range(num_portfolios):
         # calc random weights
@@ -212,7 +192,7 @@ def sample_strategies():
 
     portfolios.sort_values(by="Returns", ascending=False, inplace=True)
 
-    portfolios.to_pickle("../store/data/binance/portfolios_sample.pkl")
+    portfolios.to_pickle("./store/data/binance/portfolios_sample.pkl")
     print(df.head(10))
 
     portfolios.plot.scatter(
@@ -245,41 +225,19 @@ def perform_backtest(df=None, strategy=None):
     """Perform backtest on data"""
 
     if df is None:
-        df = pd.read_pickle("../store/data/binance/data_df.pkl")
+        df = pd.read_pickle("./store/data/binance/data_90.pkl")
 
     if strategy is None:
-        strategy = {
-            "long_side": {"value": 500000, "tickers": {"BTCBUSD": 0.1, "ETHBUSD": 0.9}},
-            "short_side": {
-                "value": 500000,
-                "tickers": {
-                    "BNBBUSD": 0.05,
-                    "SANDBUSD": 0.1,
-                    "GMTBUSD": 0.08,
-                    "DYDXUSDT": 0.07,
-                    "AVAXBUSD": 0.05,
-                    "CRVUSDT": 0.06,
-                    "APTBUSD": 0.12,
-                    "HBARUSDT": 0.05,
-                    "ALGOUSDT": 0.06,
-                    "OPUSDT": 0.14,
-                    "NEARBUSD": 0.07,
-                    "AXSUSDT": 0.04,
-                    "1INCHUSDT": 0.05,
-                    "FLOWUSDT": 0.06,
-                },
-            },
-        }
+        strategy = load_strategy()
 
     sanity_check(strategy)
     title = title_strategy(strategy)
-    file_path = "../store/results/"
+    file_path = "./store/results/"
 
     backtest = run_test(df, strategy)
 
     print("--------------------")
     print("> backtest complete")
-    # print(backtest.head(40))
     chart_backtest(
         backtest, ["short_side", "long_side", "portfolio_value"], title=title
     )
@@ -294,7 +252,7 @@ def perform_backtest(df=None, strategy=None):
 
 
 def run_best_strategies():
-    df = pd.read_pickle("../store/data/binance/portfolios_sample.pkl")
+    df = pd.read_pickle("./store/data/binance/portfolios_sample.pkl")
 
     df = df.iloc[:5]
 
@@ -305,6 +263,14 @@ def run_best_strategies():
         perform_backtest(strategy=strategy)
 
 
+def load_strategy():
+    strategy = json.load(open("./binance-strategy.json"))
+    print("Loaded strategy:")
+    print(json.dumps(strategy, indent=2))
+    return strategy
+
+
+# load_strategy()
 # perform_backtest()
 # sample_strategies()
 # run_best_strategies()
