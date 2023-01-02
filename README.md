@@ -40,3 +40,14 @@ Run the main execution terminal:
 python3 main.py
 ```
 
+## Example
+
+This is a spread trade with the weights declared in the example `binance_strategy.json` file.
+- Annualized Return: 110.20%
+- Average Annualized Volatility: 29.30%
+- Sharpe Ratio: 3.76
+- Max 24hr Drawdown: -5.14%
+- Max 1W Drawdown: -3.82%
+- Previous 1M Performance: 11.29%
+![](/store/results/charts/jan-2.png)
+
