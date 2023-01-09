@@ -321,8 +321,8 @@ def make_master_df(tickers, saveTo="master_df"):
 
 def pull(tickers, days):
     for ticker in tickers:
-        # price = get_historical_data(ticker, days)
-        # funding = get_historical_funding(ticker, days)
+        price = get_historical_data(ticker, days)
+        funding = get_historical_funding(ticker, days)
         combine_price_and_funding(ticker)
         print("Finished pulling data for " + ticker)
 
@@ -334,3 +334,6 @@ def create_data(tickers=binance_tickers, days=200, saveTo="data_90"):
 
     print("Got data from Binance")
     print(df.head(10))
+
+
+create_data(saveTo="jan9")
