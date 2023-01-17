@@ -225,7 +225,7 @@ def perform_backtest(df=None, strategy=None):
     """Perform backtest on data"""
 
     if df is None:
-        df = pd.read_pickle("./store/data/binance/jan9.pkl")
+        df = pd.read_pickle("./store/data/binance/jan12.pkl")
 
     if strategy is None:
         strategy = load_strategy()
@@ -271,6 +271,7 @@ def load_strategy():
 
 
 # load_strategy()
-perform_backtest()
+df = pd.read_pickle("./store/data/binance/jan17.pkl")
+perform_backtest(df=df)
 # sample_strategies()
 # run_best_strategies()

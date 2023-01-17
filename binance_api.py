@@ -336,4 +336,4 @@ def create_data(tickers=binance_tickers, days=200, saveTo="data_90"):
     print(df.head(10))
 
 
-create_data(saveTo="jan9")
+create_data(saveTo="jan17")
