@@ -327,7 +327,7 @@ def pull(tickers, days):
         print("Finished pulling data for " + ticker)
 
 
-def create_data(tickers=binance_tickers, days=200, saveTo="data_90"):
+def create_data(tickers=binance_tickers, days=200, saveTo="data"):
     """Pull price, funding, and combine into one df"""
     pull(tickers, days)
     df = make_master_df(tickers, saveTo=saveTo)
@@ -336,4 +336,4 @@ def create_data(tickers=binance_tickers, days=200, saveTo="data_90"):
     print(df.head(10))
 
 
-create_data(saveTo="jan17")
+create_data(saveTo="jan24")

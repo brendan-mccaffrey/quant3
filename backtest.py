@@ -271,7 +271,8 @@ def load_strategy():
 
 
 # load_strategy()
-df = pd.read_pickle("./store/data/binance/jan17.pkl")
+path = "./store/data/binance/"
+df = pd.read_pickle(path + "jan24.pkl")
 perform_backtest(df=df)
 # sample_strategies()
 # run_best_strategies()
